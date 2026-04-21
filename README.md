@@ -277,7 +277,7 @@ Auth Service → Kafka → Email Service
 
 # 👨‍💻 AUTHOR
 
-Your Name
+Anish N
 
 ---
 
