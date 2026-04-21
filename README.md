@@ -1,261 +1,286 @@
 # 📧 Email Microservices System
 
-A distributed email system built using Spring Boot and Microservices architecture.
-It supports authentication, inbox reading, drafts, sent emails, and configuration management using IMAP/SMTP.
+A distributed **email management platform** built using **Spring Boot Microservices architecture**.
+It supports full email lifecycle including **authentication, sending, receiving, drafts, scheduling, and mailbox provisioning using hMailServer**.
 
 ---
 
-## 🏗️ Architecture Overview
+# 🏗️ System Architecture
 
-```
-Client (Frontend)
+```text id="arch-final-3"
+Frontend (React / UI)
         ↓
-API Gateway (JWT Validation)
+API Gateway (JWT Authentication)
         ↓
----------------------------------------
-| Auth Service      (User + JWT)      |
-| Config Service    (IMAP/SMTP config)|
-| Inbox Service     (Read emails)     |
-| Sent Service      (Sent mails)      |
-| Drafts Service    (Draft handling)  |
-| Email Service     (Send emails)     |
----------------------------------------
+------------------------------------------------------
+Auth Service      → User Auth + JWT + Kafka Producer
+Config Service    → IMAP / SMTP Configuration Store
+Email Service     → SMTP Sending + Scheduling Engine
+Inbox Service     → IMAP Inbox Reader
+Sent Service      → IMAP Sent Reader
+Drafts Service    → IMAP Draft Manager
+------------------------------------------------------
         ↓
-Kafka (Event-driven communication)
+Kafka (Event-driven Communication)
         ↓
 MySQL Databases
+        ↓
+hMailServer (Local IMAP + SMTP Server)
 ```
 
 ---
 
-## 🚀 Tech Stack
+# 🚀 Tech Stack
 
 * Java 17
 * Spring Boot
 * Spring Security (JWT)
 * Spring Cloud Gateway
-* OpenFeign (Service communication)
-* Apache Kafka (Event-driven)
+* Spring Cloud OpenFeign
+* Apache Kafka
+* Spring Scheduler
+* JavaMail API
 * MySQL
-* JavaMail API (IMAP/SMTP)
 * hMailServer (Local Mail Server)
+* JACOB (Windows COM Automation)
+
 ---
 
-## 📮 Mail Server (hMailServer)
+# 📮 Mail Server (hMailServer)
 
-This project uses **hMailServer** as a **local email server** for handling IMAP and SMTP operations.
+This system uses **hMailServer** as a local mail server for IMAP/SMTP operations.
 
-### 🔧 Features Used
+## 🔧 Features
 
-* IMAP → Read Inbox, Sent, Drafts
-* SMTP → Send Emails
-* Local email account management
+* IMAP → Inbox, Sent, Drafts
+* SMTP → Email delivery
+* Mailbox creation via COM API (JACOB)
 
-### 📡 Configuration Example
+## ⚙️ Configuration
 
 | Setting   | Value     |
 | --------- | --------- |
 | IMAP Host | localhost |
-| IMAP Port | 143 / 993 |
-| SMTP Host | localhost |
-| SMTP Port | 25 / 587  |
-
-### 🧪 Test Accounts
-
-Create users in hMailServer like:
-
-```
-user1@test.com
-user2@test.com
-```
-
-### ⚠️ Notes
-
-* Folder names (`INBOX`, `Sent`, `Drafts`) depend on server config
-* Ensure IMAP & SMTP are enabled
-* Used for **local development/testing only**
+| IMAP Port | 143       |
+| SMTP Port | 25        |
 
 ---
 
-## 🔐 Authentication Flow
+# 🔐 Authentication Flow
 
-1. User registers via `/auth/register`
-2. Logs in via `/auth/login`
-3. Receives JWT token
-4. Token is validated at API Gateway
-5. Gateway injects:
+1. User registers → `/auth/register`
+2. Auth Service generates JWT
+3. Kafka emits `UserRegisteredEvent`
+4. Email Service:
+
+   * Creates mailbox in hMailServer
+   * Stores IMAP/SMTP config
+5. Client uses JWT → API Gateway injects:
 
    ```
-   X-User-Email: user@example.com
+   X-User-Email
    ```
-6. All downstream services use this header
 
 ---
 
-## 📦 Services
+# 📦 MICRO SERVICES
 
-### 🔑 Auth Service (Port: 8081)
+---
+
+## 🔑 Auth Service (8081)
+
+### Responsibilities:
 
 * User registration & login
-* JWT token generation
-* Publishes `UserRegisteredEvent` to Kafka
+* JWT generation
+* Kafka event publishing
 
 ---
 
-### ⚙️ Config Service (Port: 8082)
+## ⚙️ Config Service (8082)
 
-* Stores IMAP/SMTP configuration
-* Used by all email-related services
+Stores:
 
-Endpoints:
-
-```
-POST /config/imap/{email}
-GET  /config/imap/{email}
-
-POST /config/smtp/{email}
-GET  /config/smtp/{email}
-```
+* IMAP configuration
+* SMTP configuration
 
 ---
 
-### 📥 Inbox Service (Port: 8084)
+## 📧 Email Service (8083) ⭐ CORE SERVICE
 
-* Reads emails from IMAP server
+### 🚀 Responsibilities
 
-Endpoints:
-
-```
-GET /inbox
-GET /inbox/{uid}
-PUT /inbox/{uid}/read
-DELETE /inbox/delete
-```
+* Send emails via SMTP
+* Reply to emails
+* Schedule emails for future delivery
+* Store sent emails in DB
+* Append emails to Sent folder (IMAP)
+* Listen to Kafka events
+* Auto-create mailboxes in hMailServer
 
 ---
 
-### 📝 Drafts Service (Port: 8085)
+### 📡 Endpoints
 
-* Save and manage drafts
-
-Endpoints:
-
-```
-POST /drafts
-GET /drafts
-DELETE /drafts/delete
+```http id="email-endpoints"
+POST /email/send
+POST /email/reply
+GET  /email/scheduled
 ```
 
 ---
 
-### 📤 Sent Service (Port: 8086)
+### 📤 Email Sending Flow
 
-* Read sent emails
-
-Endpoints:
-
-```
-GET /sent
-PUT /sent/read/{uid}
-DELETE /sent/delete
+```text id="email-flow"
+Client → API Gateway → Email Service
+        → Config Service (SMTP credentials)
+        → hMailServer SMTP
+        → Save to Sent Folder (IMAP)
+        → Save to DB (SentEmail)
 ```
 
 ---
 
-### 🌐 API Gateway (Port: 8080)
+### ⏰ Scheduling System
 
-* Central entry point
+* Uses `@Scheduled(cron = "0 * * * * *")`
+* Runs every minute
+* Sends emails when scheduled time matches
+
+---
+
+## 📥 Inbox Service (8084)
+
+* Reads emails from IMAP Inbox
+* Supports read/unread operations
+
+---
+
+## 📝 Drafts Service (8085)
+
+* Stores drafts in IMAP Draft folder
+* Supports save / delete operations
+
+---
+
+## 📤 Sent Service (8086)
+
+* Reads Sent emails from IMAP Sent folder
+* Supports delete and mark-as-read
+
+---
+
+## 🌐 API Gateway (8080)
+
+### Responsibilities:
+
 * JWT validation
-* Routes requests to services
+* Route requests to microservices
+* Inject user identity header:
+
+```
+X-User-Email
+```
 
 ---
 
-## 🔄 Event-Driven Flow
+# 🔄 EVENT-DRIVEN FLOW (Kafka)
 
-* `UserRegisteredEvent` is published via Kafka
-* Other services can consume it for:
+## Topic:
 
-  * Initial setup
-  * Notifications
+```text id="kafka-topic"
+user-registered-topic
+```
+
+## Flow:
+
+```text id="kafka-flow"
+Auth Service → Kafka → Email Service
+```
+
+### Used for:
+
+* Mailbox creation
+* Initial IMAP/SMTP setup
+* Auto user provisioning
 
 ---
 
-## ⚠️ Security Notes
+# 🧠 KEY FEATURES
+
+## 📧 Email System
+
+* Send emails (SMTP)
+* Reply to emails
+* Scheduled email delivery
+* Sent folder sync
+
+## 📥 IMAP System
+
+* Inbox reading
+* Sent reading
+* Draft management
+
+## ⚙️ Automation
+
+* Auto mailbox creation in hMailServer
+* Auto config creation after registration
+
+---
+
+# ⚠️ SECURITY NOTES
 
 * JWT-based authentication
-* Passwords are hashed using BCrypt
-* ⚠️ DO NOT store or transmit raw passwords in events
-* ⚠️ Replace Base64 encoding with proper encryption (AES)
+* Passwords stored using Base64 ⚠️ (NOT production safe)
+* Should be replaced with AES encryption in production
 
 ---
 
-## 🛠️ How to Run
+# 📌 LIMITATIONS
 
-### 1. Start Infrastructure
-
-* MySQL
-* Kafka + Zookeeper
-
----
-
-### 2. Run Services (in order)
-
-1. Auth Service
-2. Config Service
-3. API Gateway
-4. Inbox / Drafts / Sent / Email Services
+* hMailServer is Windows-only
+* No email attachments support
+* No pagination/search
+* Folder names are environment-dependent
+* No distributed tracing yet
 
 ---
 
-### 3. Test Flow
+# 🚀 FUTURE IMPROVEMENTS
 
-#### Register
-
-```
-POST /auth/register
-```
-
-#### Login
-
-```
-POST /auth/login
-```
-
-#### Use Token
-
-```
-Authorization: Bearer <JWT>
-```
-
----
-
-## 📌 Known Limitations
-
-* IMAP folder names are hardcoded (Sent, Drafts)
-* No pagination for emails
-* Base64 used instead of encryption (needs improvement)
-* No OAuth support (Gmail/Outlook)
-
----
-
-## 🚀 Future Improvements
-
-* OAuth2 integration (Google / Microsoft)
 * AES encryption for credentials
+* Email attachments support
+* Redis caching layer
+* Resilience4j circuit breaker
+* Dockerized deployment
+* Replace hMailServer with cloud SMTP (AWS SES / Gmail API)
 * Pagination
-* Attachment support
-* Centralized mail service (reduce duplication)
-* Redis caching
-* Circuit breakers (Resilience4j)
+* WebSocket notifications
 
 ---
 
-## 👨‍💻 Author
+# 📁 PROJECT STRUCTURE
 
-Anish N
+```text id="structure-final-v2"
+/auth-service
+/config-service
+/email-service   ⭐ CORE
+/inbox-service
+/sent-service
+/drafts-service
+/api-gateway
+/shared-events
+```
 
 ---
 
-## 📄 License
+# 👨‍💻 AUTHOR
+
+Your Name
+
+---
+
+# 📄 LICENSE
 
 MIT License
