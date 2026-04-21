@@ -242,7 +242,7 @@ Authorization: Bearer <JWT>
 
 * OAuth2 integration (Google / Microsoft)
 * AES encryption for credentials
-* Pagination & search
+* Pagination
 * Attachment support
 * Centralized mail service (reduce duplication)
 * Redis caching
