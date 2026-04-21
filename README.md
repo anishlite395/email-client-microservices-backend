@@ -38,6 +38,42 @@ MySQL Databases
 * Apache Kafka (Event-driven)
 * MySQL
 * JavaMail API (IMAP/SMTP)
+* hMailServer (Local Mail Server)
+---
+
+## 📮 Mail Server (hMailServer)
+
+This project uses **hMailServer** as a **local email server** for handling IMAP and SMTP operations.
+
+### 🔧 Features Used
+
+* IMAP → Read Inbox, Sent, Drafts
+* SMTP → Send Emails
+* Local email account management
+
+### 📡 Configuration Example
+
+| Setting   | Value     |
+| --------- | --------- |
+| IMAP Host | localhost |
+| IMAP Port | 143 / 993 |
+| SMTP Host | localhost |
+| SMTP Port | 25 / 587  |
+
+### 🧪 Test Accounts
+
+Create users in hMailServer like:
+
+```
+user1@test.com
+user2@test.com
+```
+
+### ⚠️ Notes
+
+* Folder names (`INBOX`, `Sent`, `Drafts`) depend on server config
+* Ensure IMAP & SMTP are enabled
+* Used for **local development/testing only**
 
 ---
 
