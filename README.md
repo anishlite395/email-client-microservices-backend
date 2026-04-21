@@ -241,7 +241,7 @@ Auth Service → Kafka → Email Service
 
 * hMailServer is Windows-only
 * No email attachments support
-* No pagination/search
+* No pagination
 * Folder names are environment-dependent
 * No distributed tracing yet
 
